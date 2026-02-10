@@ -8,7 +8,10 @@ use App\Models\Food;
 
 class FoodController extends Controller
 {
-    public function index() { return Food::all(); }
+    public function index()
+    {
+        return Food::all();
+    }
 
 
     public function store(Request $request)
@@ -16,10 +19,22 @@ class FoodController extends Controller
         $data = $request->validate([
             'name' => 'required|string',
             'price' => 'required|numeric',
-            'category' => 'required|string',
-            'image' => 'nullable|string' // Sederhanakan dulu dengan string URL/base64
+            'description' => 'nullable|string',
+            'image' => 'nullable|string'
         ]);
-        return Food::create($data);
+        $imagePath = null;
+        if ($request->hasFile('image')) {
+            // Simpan gambar ke folder 'public/foods'
+            $imagePath = $request->file('image')->store('foods', 'public');
+        }
+
+        $food = Food::create([
+            'name' => $request->name,
+            'price' => $request->price,
+            'image' => $imagePath ? url('storage/' . $imagePath) : null,
+            'description' => $request->description ?? '-'
+        ]);
+        return response()->json(['message' => 'Menu berhasil ditambah', 'data' => $food], 201);
     }
 
     public function update(Request $request, Food $food)
@@ -30,8 +45,8 @@ class FoodController extends Controller
 
     public function destroy(Food $food)
     {
+        $food = Food::findOrFail($food->id);
         $food->delete();
-        return response()->json(['message' => 'Deleted']);
+        return response()->json(['message' => 'Menu berhasil dihapus']);
     }
-
 }

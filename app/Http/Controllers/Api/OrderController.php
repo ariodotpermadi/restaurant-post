@@ -7,14 +7,24 @@ use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\Table;
 use Illuminate\Support\Facades\DB;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class OrderController extends Controller
 {
+    public function index()
+    {
+        $orders = Order::where('status', 'closed')
+            ->with('user')
+            ->latest()
+            ->get();
+
+        return response()->json(['data' => $orders]);
+    }
     public function openOrder(Request $request)
     {
         $request->validate(['table_id' => 'required|exists:tables,id']);
 
-        return DB::transaction(function() use ($request) {
+        return DB::transaction(function () use ($request) {
             $table = Table::findOrFail($request->table_id);
             if ($table->status !== 'available') return response()->json(['message' => 'Meja tidak tersedia'], 400);
 
@@ -39,15 +49,30 @@ class OrderController extends Controller
 
         $item = $order->items()->create($request->all());
 
-        // Update total harga order
+
         $order->increment('total_price', $request->price * $request->quantity);
 
         return $item;
     }
 
+    public function currentOrder($tableId)
+    {
+
+        $order = Order::where('table_id', $tableId)
+            ->where('status', '!=', 'closed')
+            ->with('items.food')
+            ->first();
+
+        if (!$order) {
+            return response()->json(null, 404);
+        }
+
+        return response()->json(['data' => $order]);
+    }
+
     public function closeOrder(Order $order)
     {
-        return DB::transaction(function() use ($order) {
+        return DB::transaction(function () use ($order) {
             $order->update(['status' => 'closed']);
             if ($order->table_id) {
                 $table = Table::find($order->table_id);
@@ -57,5 +82,20 @@ class OrderController extends Controller
             }
             return response()->json(['message' => 'Order closed successfully', 'total' => $order->total_price]);
         });
+    }
+
+    public function printReceipt($id)
+    {
+
+        $order = Order::with(['items.food', 'user'])->findOrFail($id);
+
+
+        $pdf = Pdf::loadView('receipt', compact('order'));
+
+
+        $pdf->setPaper([0, 0, 226, 600], 'portrait');
+
+
+        return $pdf->stream('struk-order-' . $order->id . '.pdf');
     }
 }

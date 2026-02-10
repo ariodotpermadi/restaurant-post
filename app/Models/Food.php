@@ -13,7 +13,7 @@ class Food extends Model
         'name',
         'description',
         'price',
-        'status',
+        'image',
     ];
 
     public function orderItems(): HasMany
